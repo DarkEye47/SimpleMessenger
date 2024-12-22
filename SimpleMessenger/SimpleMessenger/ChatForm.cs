@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Data.OleDb;
+using System.Drawing;
 using System.Windows.Forms;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Drawing;
 
 namespace SimpleMessenger
 {
@@ -17,99 +21,176 @@ namespace SimpleMessenger
             InitializeComponent();
             this.currentUsername = currentUsername;
             this.contactUsername = contactUsername;
-            LoadMessages();
 
             messageRefreshTimer = new System.Windows.Forms.Timer();
             messageRefreshTimer.Interval = 5000; // 5 секунд
             messageRefreshTimer.Tick += new EventHandler(RefreshMessages);
             messageRefreshTimer.Start();
+
+            LoadMessages();
+            textBoxInput.KeyDown += TextBoxInput_KeyDown;
         }
 
         private void LoadMessages()
         {
-            using (OleDbConnection connection = new OleDbConnection(connectionString))
+            try
             {
-                connection.Open();
-                string query = "SELECT Id, Sender, Content, Timestamp FROM Messages WHERE (Sender = ? AND Recipient = ?) OR (Sender = ? AND Recipient = ?) ORDER BY Timestamp";
-                using (OleDbCommand command = new OleDbCommand(query, connection))
+                tableLayoutPanelMessages.Controls.Clear(); // Очищаем существующие сообщения
+
+                using (OleDbConnection connection = new OleDbConnection(connectionString))
                 {
-                    command.Parameters.AddWithValue("?", currentUsername);
-                    command.Parameters.AddWithValue("?", contactUsername);
-                    command.Parameters.AddWithValue("?", contactUsername);
-                    command.Parameters.AddWithValue("?", currentUsername);
-
-                    using (OleDbDataReader reader = command.ExecuteReader())
+                    connection.Open();
+                    string query = "SELECT Id, Sender, Content, Timestamp FROM Messages WHERE (Sender = ? AND Recipient = ?) OR (Sender = ? AND Recipient = ?) ORDER BY Timestamp";
+                    using (OleDbCommand command = new OleDbCommand(query, connection))
                     {
-                        listBoxMessages.Items.Clear();
-                        while (reader.Read())
+                        command.Parameters.AddWithValue("?", currentUsername);
+                        command.Parameters.AddWithValue("?", contactUsername);
+                        command.Parameters.AddWithValue("?", contactUsername);
+                        command.Parameters.AddWithValue("?", currentUsername);
+
+                        using (OleDbDataReader reader = command.ExecuteReader())
                         {
-                            int id = reader.GetInt32(0);
-                            string sender = reader.GetString(1);
-                            string content = reader.GetString(2);
-                            string displayedContent;
-
-                            if (content.StartsWith("[STICKER]"))
+                            while (reader.Read())
                             {
-                                string stickerUrl = content.Substring("[STICKER]".Length);
-                                displayedContent = $"[Sticker: {stickerUrl}]";
-                            }
-                            else
-                            {
-                                displayedContent = EncryptionHelper.Decrypt(content);
-                            }
+                                int id = reader.GetInt32(0);
+                                string sender = reader.GetString(1);
+                                string encryptedContent = reader.GetString(2);
+                                DateTime timestamp = reader.GetDateTime(3);
 
-                            DateTime timestamp = reader.GetDateTime(3);
-                            listBoxMessages.Items.Add(new MessageItem(id, $"{timestamp} - {sender}: {displayedContent}"));
+                                string content;
+
+                                if (encryptedContent.StartsWith("[STICKER]"))
+                                {
+                                    // Для стикеров не расшифровываем, используем как есть
+                                    content = encryptedContent.Substring(9); // Убираем [STICKER] префикс для показа URL
+                                }
+                                else
+                                {
+                                    // Расшифровываем обычные текстовые сообщения
+                                    content = EncryptionHelper.Decrypt(encryptedContent);
+                                }
+
+                                AddMessageToTable(id, sender == currentUsername, content, timestamp);
+                            }
                         }
                     }
                 }
             }
-        }
-
-        private void listBoxMessages_Click(object sender, EventArgs e)
-        {
-            if (listBoxMessages.SelectedItem != null)
-            {
-                var selectedMessage = (MessageItem)listBoxMessages.SelectedItem;
-                if (selectedMessage.DisplayText.StartsWith("[Sticker:"))
-                {
-                    string stickerUrl = selectedMessage.DisplayText.Substring(10, selectedMessage.DisplayText.Length - 11);
-                    ShowStickerInForm(stickerUrl);
-                }
-            }
-        }
-
-        private void ShowStickerInForm(string stickerUrl)
-        {
-            try
-            {
-                Form stickerForm = new Form
-                {
-                    Size = new Size(300, 300)
-                };
-
-                PictureBox pictureBox = new PictureBox
-                {
-                    ImageLocation = stickerUrl,
-                    SizeMode = PictureBoxSizeMode.Zoom,
-                    Dock = DockStyle.Fill
-                };
-
-                stickerForm.Controls.Add(pictureBox);
-                stickerForm.Show();
-            }
             catch (Exception ex)
             {
-                MessageBox.Show("Failed to load sticker: " + ex.Message);
+                MessageBox.Show("Error loading messages: " + ex.Message);
             }
         }
 
-        private void buttonSend_Click(object sender, EventArgs e)
+        private void AddMessageToTable(int id, bool isCurrentUser, string content, DateTime timestamp)
+        {
+            Control messageControl;
+
+            if (content.StartsWith("[STICKER]"))
+            {
+                string stickerFilename = content.Substring("[STICKER]".Length);
+
+                var pictureBox = new PictureBox
+                {
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    Size = new Size(150, 150),
+                    Margin = new Padding(3)
+                };
+
+                try
+                {
+                    string appPath = AppDomain.CurrentDomain.BaseDirectory;
+                    string localImagePath = Path.Combine(appPath, "Image", stickerFilename);
+
+                    if (File.Exists(localImagePath))
+                    {
+                        pictureBox.Image = Image.FromFile(localImagePath);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Image file not found: " + localImagePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Failed to load local image: " + ex.Message);
+                }
+
+                messageControl = pictureBox;
+            }
+            else
+            {
+                string displayedText = isCurrentUser
+                    ? $"{content} - {timestamp.ToShortTimeString()}"
+                    : $"{timestamp.ToShortTimeString()} - {content}";
+
+                var messageLabel = new Label
+                {
+                    Text = displayedText,
+                    AutoSize = true,
+                    MaximumSize = new Size(tableLayoutPanelMessages.ClientSize.Width / 2 - 10, 0),
+                    BackColor = Color.Transparent,
+                    Padding = new Padding(7),
+                    Margin = new Padding(3),
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+
+                messageControl = messageLabel;
+            }
+
+            var roundedPanel = new RoundedPanel
+            {
+                AutoSize = true,
+                MaximumSize = new Size(tableLayoutPanelMessages.ClientSize.Width / 2, int.MaxValue),
+                BackColor = isCurrentUser ? Color.LightSkyBlue : Color.LightGray,
+                Padding = new Padding(10)
+            };
+
+            roundedPanel.Controls.Add(messageControl);
+
+            if (isCurrentUser)
+            {
+                var deleteButton = new Button
+                {
+                    Text = "Delete",
+                    AutoSize = true,
+                    Margin = new Padding(3)
+                };
+                deleteButton.Click += (s, e) => DeleteMessage(id);
+                roundedPanel.Controls.Add(deleteButton);
+
+                // Dock the panel to the right
+                roundedPanel.Dock = DockStyle.Right;
+                tableLayoutPanelMessages.Controls.Add(roundedPanel, 1, tableLayoutPanelMessages.RowCount - 1);
+            }
+            else
+            {
+                roundedPanel.Dock = DockStyle.Left;
+                tableLayoutPanelMessages.Controls.Add(roundedPanel, 0, tableLayoutPanelMessages.RowCount - 1);
+            }
+
+            tableLayoutPanelMessages.RowCount++;
+            tableLayoutPanelMessages.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+
+        // Обработчик события KeyDown
+        private void TextBoxInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;  // Предотвращает звуковой сигнал при нажатии Enter
+                SendMessage(); // Вызов метода отправки сообщения
+            }
+        }
+
+        // Метод отправки сообщения
+        private void SendMessage()
         {
             string messageContent = textBoxInput.Text.Trim();
             if (!string.IsNullOrEmpty(messageContent))
             {
-                string encryptedContent = EncryptionHelper.Encrypt(messageContent);
+                string contentToStore = EncryptionHelper.Encrypt(messageContent); // Шифруем сообщение
+
                 using (OleDbConnection connection = new OleDbConnection(connectionString))
                 {
                     connection.Open();
@@ -118,64 +199,35 @@ namespace SimpleMessenger
                     {
                         command.Parameters.Add("Sender", OleDbType.VarChar).Value = currentUsername;
                         command.Parameters.Add("Recipient", OleDbType.VarChar).Value = contactUsername;
-                        command.Parameters.Add("Content", OleDbType.VarChar).Value = encryptedContent;
+                        command.Parameters.Add("Content", OleDbType.VarChar).Value = contentToStore;
                         command.Parameters.Add("Timestamp", OleDbType.Date).Value = DateTime.Now;
                         command.ExecuteNonQuery();
                         textBoxInput.Clear();
-                        LoadMessages();
+                        LoadMessages(); // Обновление списка сообщений
                     }
                 }
             }
         }
 
-        private void buttonDeleteMessage_Click(object sender, EventArgs e)
+        // Метод удаления сообщения
+        private void DeleteMessage(int messageId)
         {
-            if (listBoxMessages.SelectedItem != null)
-            {
-                var selectedMessage = (MessageItem)listBoxMessages.SelectedItem;
+            var dialogResult = MessageBox.Show("Are you sure you want to delete this message?", "Delete Message", MessageBoxButtons.YesNo);
 
+            if (dialogResult == DialogResult.Yes)
+            {
                 using (OleDbConnection connection = new OleDbConnection(connectionString))
                 {
                     connection.Open();
                     string query = "DELETE FROM Messages WHERE Id = ?";
                     using (OleDbCommand command = new OleDbCommand(query, connection))
                     {
-                        command.Parameters.AddWithValue("?", selectedMessage.Id);
+                        command.Parameters.AddWithValue("?", messageId);
                         command.ExecuteNonQuery();
-                        MessageBox.Show("Message deleted!");
-                        LoadMessages();
                     }
                 }
-            }
-            else
-            {
-                MessageBox.Show("Please select a message to delete.");
-            }
-        }
 
-        private void buttonSelectSticker_Click(object sender, EventArgs e)
-        {
-            // Пример использования ссылки на стикер
-            string stickerUrl = "https://imgur.com/XBQSoDb";
-            SendSticker(stickerUrl);
-        }
-
-        private void SendSticker(string stickerUrl)
-        {
-            using (OleDbConnection connection = new OleDbConnection(connectionString))
-            {
-                connection.Open();
-                string query = "INSERT INTO Messages (Sender, Recipient, Content, [Timestamp]) VALUES (?, ?, ?, ?)";
-                using (OleDbCommand command = new OleDbCommand(query, connection))
-                {
-                    command.Parameters.Add("Sender", OleDbType.VarChar).Value = currentUsername;
-                    command.Parameters.Add("Recipient", OleDbType.VarChar).Value = contactUsername;
-                    command.Parameters.Add("Content", OleDbType.VarChar).Value = "[STICKER]" + stickerUrl;
-                    command.Parameters.Add("Timestamp", OleDbType.Date).Value = DateTime.Now;
-
-                    command.ExecuteNonQuery();
-                    LoadMessages();
-                }
+                LoadMessages(); // Перезагружаем список сообщений после удаления
             }
         }
 
@@ -184,32 +236,55 @@ namespace SimpleMessenger
             LoadMessages();
         }
 
+        // Убедитесь, что метод кнопки "Отправить" вызывает тот же метод
+        private void buttonSend_Click(object sender, EventArgs e)
+        {
+            SendMessage();
+        }
+
+
+        private void buttonSelectSticker_Click(object sender, EventArgs e)
+        {
+            // Укажите здесь название файла стикера
+            string stickerFilename = "goku_bnlayt.png"; // Имя файла стикера в папке Image
+            SendSticker(stickerFilename);
+        }
+
+        private void SendSticker(string stickerFilename)
+        {
+            // Добавляем [STICKER] префикс для обозначения стикеров (если необходимо)
+            string stickerContent = "[STICKER]" + stickerFilename;
+
+            using (OleDbConnection connection = new OleDbConnection(connectionString))
+            {
+                connection.Open();
+                string query = "INSERT INTO Messages (Sender, Recipient, Content, [Timestamp]) VALUES (?, ?, ?, ?)";
+                using (OleDbCommand command = new OleDbCommand(query, connection))
+                {
+                    command.Parameters.Add("Sender", OleDbType.VarChar).Value = currentUsername;
+                    command.Parameters.Add("Recipient", OleDbType.VarChar).Value = contactUsername;
+                    command.Parameters.Add("Content", OleDbType.VarChar).Value = stickerContent;
+                    command.Parameters.Add("Timestamp", OleDbType.Date).Value = DateTime.Now;
+                    command.ExecuteNonQuery();
+                    LoadMessages();
+                }
+            }
+        }
+
+        private void buttonDeleteMessage_Click(object sender, EventArgs e)
+        {
+            // хуй тут класть надо
+        }
+
         private void ChatForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             messageRefreshTimer.Stop();
-        }
-
-        private class MessageItem
-        {
-            public int Id { get; }
-            public string DisplayText { get; }
-
-            public MessageItem(int id, string displayText)
-            {
-                Id = id;
-                DisplayText = displayText;
-            }
-
-            public override string ToString()
-            {
-                return DisplayText;
-            }
+            SaveDraft();
         }
 
         private void buttonBackToContacts_Click(object sender, EventArgs e)
         {
             DialogResult result = MessageBox.Show("Would you like to save your draft?", "Exit Chat", MessageBoxButtons.YesNoCancel);
-
             if (result == DialogResult.Yes)
             {
                 SaveDraft();
@@ -219,7 +294,6 @@ namespace SimpleMessenger
             {
                 this.Close();
             }
-            // Cancel: остаемся в чате
         }
 
         private void SaveDraft()
@@ -234,7 +308,6 @@ namespace SimpleMessenger
                     deleteCommand.Parameters.AddWithValue("?", contactUsername);
                     deleteCommand.ExecuteNonQuery();
                 }
-
                 if (!string.IsNullOrEmpty(draftMessage))
                 {
                     string insertQuery = "INSERT INTO Drafts (Sender, Recipient, Content) VALUES (?, ?, ?)";
@@ -244,6 +317,38 @@ namespace SimpleMessenger
                         insertCommand.Parameters.AddWithValue("?", contactUsername);
                         insertCommand.Parameters.AddWithValue("?", draftMessage);
                         insertCommand.ExecuteNonQuery();
+                    }
+                }
+            }
+        }
+
+        private void textBoxInput_TextChanged(object sender, EventArgs e)
+        {
+            draftMessage = textBoxInput.Text;
+        }
+
+        private void ChatForm_Load(object sender, EventArgs e)
+        {
+            LoadDraft();
+        }
+
+        private void LoadDraft()
+        {
+            using (OleDbConnection connection = new OleDbConnection(connectionString))
+            {
+                connection.Open();
+                string query = "SELECT Content FROM Drafts WHERE Sender = ? AND Recipient = ?";
+                using (OleDbCommand command = new OleDbCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("?", currentUsername);
+                    command.Parameters.AddWithValue("?", contactUsername);
+                    using (OleDbDataReader reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            draftMessage = reader.GetString(0);
+                            textBoxInput.Text = draftMessage;
+                        }
                     }
                 }
             }

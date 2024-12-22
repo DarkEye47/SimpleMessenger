@@ -3,30 +3,45 @@
     partial class ContactsForm
     {
         private System.ComponentModel.IContainer components = null;
-        private System.Windows.Forms.DataGridView dataGridViewContacts;
+        private System.Windows.Forms.ListView listViewContacts;
+        private System.Windows.Forms.ColumnHeader columnHeaderContact;
         private System.Windows.Forms.Button buttonAddContact;
         private System.Windows.Forms.Button buttonDeleteContact;
         private System.Windows.Forms.TextBox textBoxSearch;
         private System.Windows.Forms.Button buttonOpenChat;
+        private System.Windows.Forms.Button buttonLogout;
+        private System.Windows.Forms.Label labelLastMessage;
 
         private void InitializeComponent()
         {
-            dataGridViewContacts = new DataGridView();
+            listViewContacts = new ListView();
+            columnHeaderContact = new ColumnHeader();
             buttonAddContact = new Button();
             buttonDeleteContact = new Button();
             textBoxSearch = new TextBox();
             buttonOpenChat = new Button();
-            ((System.ComponentModel.ISupportInitialize)dataGridViewContacts).BeginInit();
+            buttonLogout = new Button();
+            labelLastMessage = new Label();
+
             SuspendLayout();
             // 
-            // dataGridViewContacts
+            // listViewContacts
             // 
-            dataGridViewContacts.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dataGridViewContacts.Location = new Point(30, 61);
-            dataGridViewContacts.Name = "dataGridViewContacts";
-            dataGridViewContacts.RowHeadersWidth = 51;
-            dataGridViewContacts.Size = new Size(300, 548);
-            dataGridViewContacts.TabIndex = 0;
+            listViewContacts.Columns.AddRange(new ColumnHeader[] { columnHeaderContact });
+            listViewContacts.FullRowSelect = true;
+            listViewContacts.GridLines = true;
+            listViewContacts.Location = new Point(30, 61);
+            listViewContacts.MultiSelect = false;
+            listViewContacts.Name = "listViewContacts";
+            listViewContacts.Size = new Size(300, 548);
+            listViewContacts.TabIndex = 0;
+            listViewContacts.UseCompatibleStateImageBehavior = false;
+            listViewContacts.View = View.Details;
+            // 
+            // columnHeaderContact
+            // 
+            columnHeaderContact.Text = "Contact Username";
+            columnHeaderContact.Width = 280;
             // 
             // buttonAddContact
             // 
@@ -63,17 +78,34 @@
             buttonOpenChat.Text = "Open Chat";
             buttonOpenChat.Click += buttonOpenChat_Click;
             // 
+            // buttonLogout
+            // 
+            buttonLogout.Location = new Point(30, 655);
+            buttonLogout.Name = "buttonLogout";
+            buttonLogout.Size = new Size(100, 30);
+            buttonLogout.TabIndex = 5;
+            buttonLogout.Text = "Logout";
+            buttonLogout.Click += buttonLogout_Click;
+            // 
+            // labelLastMessage
+            // 
+            labelLastMessage.Location = new Point(30, 695);
+            labelLastMessage.Size = new Size(300, 50);
+            labelLastMessage.Name = "labelLastMessage";
+            labelLastMessage.Text = "  ";
+            labelLastMessage.AutoSize = false;
+            // 
             // ContactsForm
             // 
-            ClientSize = new Size(385, 657);
-            Controls.Add(dataGridViewContacts);
+            ClientSize = new Size(400, 700);
+            Controls.Add(listViewContacts);
             Controls.Add(buttonAddContact);
             Controls.Add(buttonDeleteContact);
             Controls.Add(textBoxSearch);
             Controls.Add(buttonOpenChat);
+            Controls.Add(buttonLogout);
             Name = "ContactsForm";
             Text = "Contacts";
-            ((System.ComponentModel.ISupportInitialize)dataGridViewContacts).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Data;
 using System.Data.OleDb;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace SimpleMessenger
@@ -19,6 +20,7 @@ namespace SimpleMessenger
 
         private void LoadContacts()
         {
+            listViewContacts.Items.Clear(); // Очистка перед загрузкой
             using (OleDbConnection connection = new OleDbConnection(connectionString))
             {
                 connection.Open();
@@ -26,13 +28,59 @@ namespace SimpleMessenger
                 using (OleDbCommand command = new OleDbCommand(query, connection))
                 {
                     command.Parameters.AddWithValue("?", currentUsername);
-                    using (OleDbDataAdapter adapter = new OleDbDataAdapter(command))
+                    using (OleDbDataReader reader = command.ExecuteReader())
                     {
-                        DataTable dt = new DataTable();
-                        adapter.Fill(dt);
-                        dataGridViewContacts.DataSource = dt;
+                        while (reader.Read())
+                        {
+                            var item = new ListViewItem(reader["ContactUsername"].ToString());
+                            listViewContacts.Items.Add(item);
+                        }
                     }
                 }
+            }
+
+            DisplayLastMessage();
+        }
+
+        private void DisplayLastMessage()
+        {
+            if (listViewContacts.SelectedItems.Count > 0)
+            {
+                string contactUsername = listViewContacts.SelectedItems[0].Text;
+
+                using (OleDbConnection connection = new OleDbConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = @"SELECT TOP 1 Content, Timestamp FROM Messages 
+                             WHERE (Sender = ? AND Recipient = ?) OR (Sender = ? AND Recipient = ?)
+                             ORDER BY Timestamp DESC";
+
+                    using (OleDbCommand command = new OleDbCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("?", currentUsername);
+                        command.Parameters.AddWithValue("?", contactUsername);
+                        command.Parameters.AddWithValue("?", contactUsername);
+                        command.Parameters.AddWithValue("?", currentUsername);
+
+                        using (OleDbDataReader reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                string lastMessage = reader["Content"].ToString();
+                                DateTime timestamp = (DateTime)reader["Timestamp"];
+                                labelLastMessage.Text = $"Last Message: {lastMessage} at {timestamp.ToShortTimeString()}";
+                            }
+                            else
+                            {
+                                labelLastMessage.Text = "No messages yet.";
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                labelLastMessage.Text = "No contact selected.";
             }
         }
 
@@ -56,7 +104,7 @@ namespace SimpleMessenger
             {
                 connection.Open();
 
-                // Проверка на существование пользователя
+                // Проверка пользователя
                 string checkUserQuery = "SELECT COUNT(*) FROM Users WHERE Username = ?";
                 using (OleDbCommand checkUserCommand = new OleDbCommand(checkUserQuery, connection))
                 {
@@ -98,22 +146,26 @@ namespace SimpleMessenger
 
         private void buttonDeleteContact_Click(object sender, EventArgs e)
         {
-            if (dataGridViewContacts.SelectedRows.Count > 0)
+            if (listViewContacts.SelectedItems.Count > 0)
             {
-                string contactUsername = dataGridViewContacts.SelectedRows[0].Cells[0].Value.ToString();
+                string contactUsername = listViewContacts.SelectedItems[0].Text;
+                var dialogResult = MessageBox.Show($"Are you sure you want to delete {contactUsername} from your contacts?", "Delete Contact", MessageBoxButtons.YesNo);
 
-                using (OleDbConnection connection = new OleDbConnection(connectionString))
+                if (dialogResult == DialogResult.Yes)
                 {
-                    connection.Open();
-                    string query = "DELETE FROM Contacts WHERE OwnerUsername = ? AND ContactUsername = ?";
-                    using (OleDbCommand command = new OleDbCommand(query, connection))
+                    using (OleDbConnection connection = new OleDbConnection(connectionString))
                     {
-                        command.Parameters.AddWithValue("?", currentUsername);
-                        command.Parameters.AddWithValue("?", contactUsername);
-                        command.ExecuteNonQuery();
-                        MessageBox.Show("Contact deleted!");
-                        LoadContacts();
+                        connection.Open();
+                        string query = "DELETE FROM Contacts WHERE OwnerUsername = ? AND ContactUsername = ?";
+                        using (OleDbCommand command = new OleDbCommand(query, connection))
+                        {
+                            command.Parameters.AddWithValue("?", currentUsername);
+                            command.Parameters.AddWithValue("?", contactUsername);
+                            command.ExecuteNonQuery();
+                        }
                     }
+                    MessageBox.Show("Contact deleted!");
+                    LoadContacts();
                 }
             }
             else
@@ -126,6 +178,7 @@ namespace SimpleMessenger
         {
             string searchQuery = textBoxSearch.Text.Trim();
 
+            listViewContacts.Items.Clear(); // Очистка перед поиском
             using (OleDbConnection connection = new OleDbConnection(connectionString))
             {
                 connection.Open();
@@ -148,29 +201,24 @@ namespace SimpleMessenger
                         command.Parameters.AddWithValue("?", "%" + searchQuery + "%");
                     }
 
-                    using (OleDbDataAdapter adapter = new OleDbDataAdapter(command))
+                    using (OleDbDataReader reader = command.ExecuteReader())
                     {
-                        DataTable dt = new DataTable();
-                        adapter.Fill(dt);
-                        dataGridViewContacts.DataSource = dt;
+                        while (reader.Read())
+                        {
+                            var item = new ListViewItem(reader["ContactUsername"].ToString());
+                            listViewContacts.Items.Add(item);
+                        }
                     }
                 }
             }
         }
+
         private void buttonOpenChat_Click(object sender, EventArgs e)
         {
-            if (dataGridViewContacts.SelectedRows.Count > 0)
+            if (listViewContacts.SelectedItems.Count > 0)
             {
-                var selectedRow = dataGridViewContacts.SelectedRows[0];
-                if (!selectedRow.IsNewRow) // Проверка на новую строку
-                {
-                    string contactUsername = selectedRow.Cells[0].Value.ToString();
-                    OpenChat(contactUsername);
-                }
-                else
-                {
-                    MessageBox.Show("Please select a valid contact.");
-                }
+                string contactUsername = listViewContacts.SelectedItems[0].Text;
+                OpenChat(contactUsername);
             }
             else
             {
@@ -182,31 +230,41 @@ namespace SimpleMessenger
         {
             var chatForm = new ChatForm(currentUsername, contactUsername);
             this.Hide();
-            
+
             chatForm.FormClosed += (s, args) => this.Show();
             chatForm.ShowDialog();
         }
-    }
 
-    public static class Prompt
-    {
-        public static string ShowDialog(string text, string caption)
+        private void buttonLogout_Click(object sender, EventArgs e)
         {
-            Form prompt = new Form()
-            {
-                Width = 300,
-                Height = 150,
-                Text = caption
-            };
-            Label textLabel = new Label() { Left = 20, Top = 20, Text = text };
-            TextBox textBox = new TextBox() { Left = 20, Top = 50, Width = 240 };
-            Button confirmation = new Button() { Text = "OK", Left = 180, Width = 80, Top = 80 };
-            confirmation.Click += (sender, e) => { prompt.Close(); };
-            prompt.Controls.Add(textBox);
-            prompt.Controls.Add(confirmation);
-            prompt.Controls.Add(textLabel);
-            prompt.ShowDialog();
-            return textBox.Text;
+            // Скрывает форму контактов и открывает форму входа
+            this.Hide();
+
+            var loginForm = new LoginForm();
+            loginForm.FormClosed += (s, args) => this.Show(); // Закрываем контакты, когда форма входа закрыта
+            loginForm.Show(); // Показываем экран входа в систему
         }
-    }
+
+        public static class Prompt
+            {
+                public static string ShowDialog(string text, string caption)
+                {
+                    Form prompt = new Form()
+                    {
+                        Width = 300,
+                        Height = 150,
+                        Text = caption
+                    };
+                    Label textLabel = new Label() { Left = 20, Top = 20, Text = text };
+                    TextBox textBox = new TextBox() { Left = 20, Top = 50, Width = 240 };
+                    Button confirmation = new Button() { Text = "OK", Left = 180, Width = 80, Top = 80 };
+                    confirmation.Click += (sender, e) => { prompt.Close(); };
+                    prompt.Controls.Add(textBox);
+                    prompt.Controls.Add(confirmation);
+                    prompt.Controls.Add(textLabel);
+                    prompt.ShowDialog();
+                    return textBox.Text;
+                }
+            }
+        }
 }

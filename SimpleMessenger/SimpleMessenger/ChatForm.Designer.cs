@@ -3,30 +3,22 @@
     partial class ChatForm
     {
         private System.ComponentModel.IContainer components = null;
-        private System.Windows.Forms.TextBox textBoxMessages;
         private System.Windows.Forms.TextBox textBoxInput;
         private System.Windows.Forms.Button buttonSend;
-        private System.Windows.Forms.ListBox listBoxMessages;
-        private System.Windows.Forms.Button buttonDeleteMessage;
+        private System.Windows.Forms.TableLayoutPanel tableLayoutPanelMessages;
+        private System.Windows.Forms.Button buttonDeleteMessage; // Если все еще нужно
         private System.Windows.Forms.Button buttonSelectSticker;
+        private System.Windows.Forms.Button buttonBackToContacts;
 
         private void InitializeComponent()
         {
-            textBoxMessages = new TextBox();
             textBoxInput = new TextBox();
             buttonSend = new Button();
+            tableLayoutPanelMessages = new TableLayoutPanel();
             buttonBackToContacts = new Button();
-            listBoxMessages = new ListBox();
             buttonDeleteMessage = new Button();
             buttonSelectSticker = new Button();
             SuspendLayout();
-            // 
-            // textBoxMessages
-            // 
-            textBoxMessages.Location = new Point(0, 0);
-            textBoxMessages.Name = "textBoxMessages";
-            textBoxMessages.Size = new Size(100, 27);
-            textBoxMessages.TabIndex = 0;
             // 
             // textBoxInput
             // 
@@ -44,6 +36,19 @@
             buttonSend.Text = "Send";
             buttonSend.Click += buttonSend_Click;
             // 
+            // tableLayoutPanelMessages
+            // 
+            tableLayoutPanelMessages.AutoScroll = true;
+            tableLayoutPanelMessages.ColumnCount = 2;
+            tableLayoutPanelMessages.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanelMessages.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanelMessages.Location = new Point(12, 41);
+            tableLayoutPanelMessages.Name = "tableLayoutPanelMessages";
+            tableLayoutPanelMessages.RowCount = 1;
+            tableLayoutPanelMessages.RowStyles.Add(new RowStyle());
+            tableLayoutPanelMessages.Size = new Size(453, 184);
+            tableLayoutPanelMessages.TabIndex = 0;
+            // 
             // buttonBackToContacts
             // 
             buttonBackToContacts.Location = new Point(12, 6);
@@ -54,46 +59,37 @@
             buttonBackToContacts.UseVisualStyleBackColor = true;
             buttonBackToContacts.Click += buttonBackToContacts_Click;
             // 
-            // listBoxMessages
-            // 
-            listBoxMessages.Location = new Point(12, 41);
-            listBoxMessages.Name = "listBoxMessages";
-            listBoxMessages.Size = new Size(453, 184);
-            listBoxMessages.TabIndex = 4;
-            // 
             // buttonDeleteMessage
             // 
-            buttonDeleteMessage.Location = new Point(390, 9);
+            buttonDeleteMessage.Location = new Point(297, 261);
             buttonDeleteMessage.Name = "buttonDeleteMessage";
-            buttonDeleteMessage.Size = new Size(75, 26);
-            buttonDeleteMessage.TabIndex = 5;
+            buttonDeleteMessage.Size = new Size(168, 26);
+            buttonDeleteMessage.TabIndex = 4;
             buttonDeleteMessage.Text = "Delete Message";
             buttonDeleteMessage.Click += buttonDeleteMessage_Click;
             // 
             // buttonSelectSticker
             // 
-            buttonSelectSticker.Location = new Point(297, 261);
+            buttonSelectSticker.Location = new Point(297, 293);
             buttonSelectSticker.Name = "buttonSelectSticker";
             buttonSelectSticker.Size = new Size(168, 26);
-            buttonSelectSticker.TabIndex = 6;
+            buttonSelectSticker.TabIndex = 5;
             buttonSelectSticker.Text = "Send Sticker";
             buttonSelectSticker.Click += buttonSelectSticker_Click;
             // 
             // ChatForm
             // 
-            ClientSize = new Size(477, 300);
+            ClientSize = new Size(477, 330);
+            Controls.Add(tableLayoutPanelMessages);
             Controls.Add(buttonBackToContacts);
-            Controls.Add(listBoxMessages);
-            Controls.Add(buttonDeleteMessage);
             Controls.Add(textBoxInput);
             Controls.Add(buttonSend);
+            Controls.Add(buttonDeleteMessage);
             Controls.Add(buttonSelectSticker);
             Name = "ChatForm";
             Text = "Chat";
             ResumeLayout(false);
             PerformLayout();
         }
-
-        private Button buttonBackToContacts;
     }
 }
